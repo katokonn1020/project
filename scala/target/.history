@@ -1,0 +1,10 @@
+var capital = Map("US" -> "Washington", "France" -> "Paris")
+run
+ls
+run
+:quit
+run
+rub
+run
+ls
+run
