@@ -2,52 +2,28 @@ import scala.sys.process._
 import java.io.File
 
 import scala.collection.immutable
+import scala.util.matching.Regex
 
 object MoveDirectry {
   def main(args: Array[String]): Unit = {
     val currentPath = new File(".").getAbsoluteFile.getParent
-    val dirList     = Process(Seq("sh","-c","cd ../before/src && ls")).lines.toList
-    dirList.foreach(mkdir)
+    val dirList = Process(Seq("sh", "-c", "cd ../before/src && ls")).lines.toList
+    dirList.foreach(getDomainName)
   }
 
-  def mkdir(name: String) {
-    //死んでる変数ですが、どうやっても""の中に変数を入れる方法が見つからなかったので、一旦stringに格納
-    //val gitText = Process(Seq("sh","-c","git -C ../before/src/"+name+" remote -v")).lines.toList(0)
-    val gitText: String = Process(Seq("sh", "-c", "git -C ../before/src/" + name + " remote -v")).lines.head.dropRight(8)
-
+  def getDomainName(name: String) {
+    val gitText: String = Process(Seq("sh", "-c", s"git -C ../before/src/$name remote -v")).lines.head.dropRight(8)
     //"project5.git (fetch)" or "project4 (fetch)"と2パターンあったのでifで処理
-    val collectedGitText: String =
-      if (gitText.endsWith(".git")) {
-        gitText.dropRight(4)
-      } else {
-        gitText
-      }
+    val collectedGitText: String = gitText.dropRight(if (gitText.endsWith(".git")) 4 else 0)
+    //ドメインを自動的に取得するように。記述は不要。ただし現状.comか.infoで終わる物のみ。
+    val domainRegex = """[@|/].+com|info""".r
+    val currentDomainName = domainRegex.findFirstIn(gitText).get.diff("/").diff("/").diff("@")
+    mkdir(currentDomainName, collectedGitText)
+  }
 
-    //リポジトリ名を先に記しておかないといけない仕様
-    val githubWith = "(.*github.com.*)".r
-    val googleWith = "(.*source.developers.google.com.*)".r
-    val awsWith    = "(.*git-codecommit.us-east-1.amazonaws.com.*)".r
-
-    collectedGitText match {
-      case githubWith(matched) =>
-        val dirName: String = collectedGitText.split("github.com.").last.split("/").toSeq.mkString("/")
-        println(dirName)
-        Process(Seq("sh", "-c", "mkdir -p ../before/src/github.com/" + dirName)).run
-      case _ =>
-    }
-    collectedGitText match {
-      case googleWith(matched) =>
-        val dirName: String = collectedGitText.split("source.developers.google.com.").last.split("/").toSeq.mkString("/")
-        println(dirName)
-        Process(Seq("sh", "-c", "mkdir -p ../before/src/source.developers.google.com/" + dirName)).run
-      case _ =>
-    }
-    collectedGitText match {
-      case awsWith(matched) =>
-        val dirName: String = collectedGitText.split("git-codecommit.us-east-1.amazonaws.com.").last.split("/").toSeq.mkString("/")
-        println(dirName)
-        Process(Seq("sh", "-c", "mkdir -p ../before/src/git-codecommit.us-east-1.amazonaws.com./" + dirName)).run
-      case _ =>
-    }
+  def mkdir(domainName: String, collectedGitText: String): Unit = {
+    val dirName: String = collectedGitText.split(domainName + ".").last.split("/").toSeq.mkString("/")
+    Process(Seq("sh", "-c", s"mkdir -p ../before/src/$domainName/$dirName")).run
+    println(s"Sucess!\n$domainName/$dirName")
   }
 }
