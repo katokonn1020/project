@@ -11,19 +11,31 @@ object MoveDirectry {
     dirList.foreach(getDomainName)
   }
 
-  def getDomainName(name: String) {
-    val gitText: String = Process(Seq("sh", "-c", s"git -C ../before/src/$name remote -v")).lines.head.dropRight(8)
-    //"project5.git (fetch)" or "project4 (fetch)"と2パターンあったのでifで処理
-    val collectedGitText: String = gitText.dropRight(if (gitText.endsWith(".git")) 4 else 0)
+  def getDomainName(projectName: String) {
+    val gitText: String = Process(Seq("sh", "-c", s"git -C ../before/src/$projectName remote -v")).lines.head.dropRight(8)
     //ドメインを自動的に取得するように。記述は不要。ただし現状.comか.infoで終わる物のみ。
-    val domainRegex = """[@|/].+com|info""".r
+    val domainRegex =
+      """[@|/].+com|info""".r
     val currentDomainName = domainRegex.findFirstIn(gitText).get.diff("/").diff("/").diff("@")
-    mkdir(currentDomainName, collectedGitText)
+    val dirNameArray: Array[String] = gitText.dropRight(if (gitText.endsWith(".git")) 4 else 0).split(currentDomainName + ".").last.split("/")
+    // p/shokohara-123456/r/project5
+    mkdir(currentDomainName, dirNameArray)
+    mv(projectName, currentDomainName, dirNameArray)
   }
 
-  def mkdir(domainName: String, collectedGitText: String): Unit = {
-    val dirName: String = collectedGitText.split(domainName + ".").last.split("/").toSeq.mkString("/")
+  def mkdir(domainName: String, dirNameArray: Array[String]): Unit = {
+    val dirName: String = dirNameArray.init.toSeq.mkString("/")
     Process(Seq("sh", "-c", s"mkdir -p ../before/src/$domainName/$dirName")).run
     println(s"Sucess!\n$domainName/$dirName")
+  }
+
+  def mv(projectName: String, domainName: String, dirNameArray: Array[String]) = {
+    //現在のリポジトリ名が「project05」でも、gitのリポジトリ名が「project5」など差分がある可能性があるので用意しておく。
+    val gitProjectDirName: String = dirNameArray.last
+    //mvをする際に、src/project05 -> src/github/shokohara/project5 というふうにdir名が異なっていた場合mvができないので先にリネーム
+    Process(Seq("sh", "-c", s"mv ../before/src/$projectName ../before/src/$gitProjectDirName")).run
+    //「p/shokohara-123456/r/project5」のようにfullPathString
+    val fullDirName: String = dirNameArray.toSeq.mkString("/")
+    Process(Seq("sh", "-c", s"mv ../before/src/$gitProjectDirName/ ../before/src/$domainName/$fullDirName")).run
   }
 }
