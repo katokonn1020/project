@@ -6,24 +6,23 @@ import scala.util.matching.Regex
 
 object MoveDirectry {
   def main(args: Array[String]): Unit = {
-    val currentPath = new File(".").getAbsoluteFile.getParent
     val dirList = Process(Seq("sh", "-c", "cd ../before/src && ls")).lines.toList
-    dirList.foreach(getDomainName)
+    dirList.foreach { projectName =>
+      val gitText: String = Process(Seq("sh", "-c", s"git -C ../before/src/$projectName remote -v")).lines.head.dropRight(8)
+      val currentDomainName = getDomainName(gitText)
+      val dirNameArray: Array[String] = gitText.dropRight(if (gitText.endsWith(".git")) 4 else 0).split(currentDomainName + ".").last.split("/")
+      mkdir(dirNameArray, currentDomainName, gitText)
+      mv(projectName, currentDomainName, dirNameArray)
+    }
   }
 
-  def getDomainName(projectName: String) {
-    val gitText: String = Process(Seq("sh", "-c", s"git -C ../before/src/$projectName remote -v")).lines.head.dropRight(8)
-    //ドメインを自動的に取得するように。記述は不要。ただし現状.comか.infoで終わる物のみ。
-    val domainRegex =
-      """[@|/].+com|info""".r
-    val currentDomainName = domainRegex.findFirstIn(gitText).get.diff("/").diff("/").diff("@")
-    val dirNameArray: Array[String] = gitText.dropRight(if (gitText.endsWith(".git")) 4 else 0).split(currentDomainName + ".").last.split("/")
-    // p/shokohara-123456/r/project5
-    mkdir(currentDomainName, dirNameArray)
-    mv(projectName, currentDomainName, dirNameArray)
+  //ドメインを自動的に取得するように。記述は不要。ただし現状.comか.infoで終わる物のみ。
+  def getDomainName(gitText: String): String = {
+    val domainRegex = """[@|/].+com|info""".r
+    domainRegex.findFirstIn(gitText).get.diff("/").diff("/").diff("@")
   }
 
-  def mkdir(domainName: String, dirNameArray: Array[String]): Unit = {
+  def mkdir(dirNameArray: Array[String], domainName: String, gitText: String): Unit = {
     val dirName: String = dirNameArray.init.toSeq.mkString("/")
     Process(Seq("sh", "-c", s"mkdir -p ../before/src/$domainName/$dirName")).run
     println(s"Sucess!\n$domainName/$dirName")
